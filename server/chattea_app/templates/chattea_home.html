@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>Chattea</h1>
+<p>Spill the (cha) tea!</p>
+
+<ul>
+    {% for x in chats %}
+      <li>{{ x.messages }}</li>
+    {% endfor %}
+</ul>
+
+<form action="", method="post", novalidate>
+    {% csrf_token %}
+    {{ form }}
+    <input type="submit" value="submit">
+</form>
+
+</body>
+</html>
