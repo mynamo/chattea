@@ -1,21 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chattea 🍵</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --card: #fff; --border: #e4ddd0; --text: #2c2a26;
+    --muted: #7a7368; --user: #2f6f6a; --bot: #efe9dd; --accent: #2f6f6a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex; justify-content: center; padding: 24px 16px;
+  }
+  .app { width: 100%; max-width: 620px; }
+  header h1 { margin: 0; font-size: 1.9rem; letter-spacing: -0.02em; }
+  header p { margin: 4px 0 18px; color: var(--muted); }
+
+  .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .controls label { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+  select {
+    padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--card); font-size: 0.95rem; color: var(--text); cursor: pointer;
+  }
+  .clear { margin-left: auto; font-size: 0.85rem; color: var(--muted); text-decoration: none; }
+  .clear:hover { color: #b23; }
+
+  .chat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 18px; min-height: 300px; max-height: 62vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .empty { color: var(--muted); text-align: center; margin: auto; font-size: 0.95rem; }
+  .row { display: flex; }
+  .row.user { justify-content: flex-end; }
+  .row.bot { justify-content: flex-start; }
+  .bubble {
+    max-width: 78%; padding: 10px 14px; border-radius: 16px; font-size: 0.97rem;
+    line-height: 1.45; word-wrap: break-word;
+  }
+  .user .bubble { background: var(--user); color: #fff; border-bottom-right-radius: 4px; }
+  .bot .bubble { background: var(--bot); color: var(--text); border-bottom-left-radius: 4px; }
+
+  form.send { display: flex; gap: 10px; margin-top: 14px; }
+  form.send input[type=text] {
+    flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
+    font-size: 1rem; background: var(--card); color: var(--text);
+  }
+  form.send button {
+    padding: 12px 20px; border: none; border-radius: 12px; background: var(--accent);
+    color: #fff; font-weight: 600; font-size: 0.97rem; cursor: pointer;
+  }
+  form.send button:hover { background: #275b57; }
+  footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 16px; }
+</style>
+</head>
 <body>
+<div class="app">
+  <header>
+    <h1>Chattea 🍵</h1>
+    <p>Spill the (cha) tea — currently in <strong>{{ current_label }}</strong> mode.</p>
+  </header>
 
-<h1>Chattea</h1>
-<p>Spill the (cha) tea!</p>
+  <div class="controls">
+    <label for="mode">Bot mode</label>
+    <!-- Switching mode is a GET so it doesn't resend your last message -->
+    <select id="mode" onchange="location.href='?mode=' + this.value">
+      {% for key, label in modes %}
+        <option value="{{ key }}" {% if key == current_mode %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <a class="clear" href="?clear=1">Clear chat</a>
+  </div>
 
-<ul>
-    {% for x in chats %}
-      <li>{{ x.messages }}</li>
-    {% endfor %}
-</ul>
+  <div class="chat" id="chat">
+    {% if chats %}
+      {% for x in chats %}
+        <div class="row {{ x.sender }}">
+          <div class="bubble">{{ x.messages }}</div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">Say something to start — the bot replies in <strong>{{ current_label }}</strong> mode.</div>
+    {% endif %}
+  </div>
 
-<form action="", method="post", novalidate>
+  <form class="send" action="" method="post" novalidate>
     {% csrf_token %}
-    {{ form }}
-    <input type="submit" value="submit">
-</form>
+    <input type="text" name="message" placeholder="Type a message…" autocomplete="off" autofocus required>
+    <button type="submit">Send</button>
+  </form>
 
+  <footer>chattea · a Django multi-mode chatbot by Aditi Kulkarni</footer>
+</div>
+
+<script>
+  // keep the newest message in view
+  var c = document.getElementById('chat');
+  if (c) c.scrollTop = c.scrollHeight;
+</script>
 </body>
 </html>

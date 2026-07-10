@@ -1,5 +1,6 @@
-from django.shortcuts import render
-from django.http import HttpResponse
+from django.shortcuts import redirect
+
 
 def home(request):
-    return HttpResponse("Welcome to Chattea!")
+    # Send visitors straight to the chat.
+    return redirect("index")
