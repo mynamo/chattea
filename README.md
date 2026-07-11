@@ -5,10 +5,10 @@ and the bot responds accordingly:
 
 - 🎬 **Movie & TV Quotes** — replies with a famous quote
 - 🧠 **Random Facts** — detects your topic and serves up a fact
-- 🍌 **Minionese Translator** — turns your message into Minion-speak
-- 🐉 **High Valyrian** — Game-of-Thrones-flavored translation
-- 🏴‍☠️ **Pirate Speak** — aye, matey
-- 🟢 **Yoda-Speak** — reorder your words, it does
+- 🍌 **Minionese** — replies in Minion-speak
+- 🐉 **High Valyrian** — replies with iconic Game-of-Thrones phrases
+- 🏴‍☠️ **Pirate Speak** — talks like a pirate, aye
+- 🟢 **Yoda-Speak** — speaks in Yoda-isms
 - 💭 **Sentiment Mirror** — reads your mood and mirrors it back (lightweight NLP)
 - ❓ **Trivia Game** — asks questions and tracks your score
 
@@ -20,13 +20,18 @@ Every mode is a function `f(text, session) -> str`, registered in a single
 — so **adding a personality is one function plus one line in `MODES`**; nothing
 else changes.
 
-- **Translators** are rule-based: a small English→X vocabulary plus a light
-  phonetic transform and a random sign-off. No ML, no external calls.
+- **Persona modes** (Minionese, Valyrian, Pirate, Yoda) reply with in-character
+  lines from a curated set — they speak the voice rather than translating you.
+- **Quotes & Facts** draw from curated sets using a shuffled "deck" kept in the
+  session, so nothing repeats until the whole set has been shown.
 - **Sentiment Mirror** uses a tiny positive/negative word lexicon rather than a
   heavy NLP library, keeping the app fast and deploy-friendly.
-- **Trivia** is the one stateful mode: it stores score and the current answer in
-  the session (and is listed in `STATEFUL_MODES` so the view seeds an opening
-  question when you switch in). Score resets when you clear the chat.
+- **Trivia** is stateful: it stores score, the current answer, and its question
+  deck in the session (and is in `STATEFUL_MODES` so the view seeds an opening
+  question when you switch in).
+- **A page refresh starts a fresh chat.** POST-redirect-GET preserves the
+  conversation while you use it; a genuine reload clears it via a one-shot
+  `keep_chat` session flag.
 - Everything uses only the Python standard library (`random`, `re`), so
   `requirements.txt` stays minimal.
 

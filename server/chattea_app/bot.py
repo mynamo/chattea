@@ -10,6 +10,20 @@ self-contained (no external APIs or downloads) so it deploys cleanly on Render.
 import random
 import re
 
+
+def _draw_from_deck(session, key, size):
+    """Return the next index from a shuffled deck kept in the session, so items
+    don't repeat until the whole set has been shown. Reshuffles when exhausted."""
+    deck = session.get(key) or []
+    if not deck:
+        deck = list(range(size))
+        random.shuffle(deck)
+    i = deck.pop()
+    session[key] = deck
+    session.modified = True
+    return i
+
+
 # ---------------------------------------------------------------------------
 # Mode — Random facts about a topic
 # ---------------------------------------------------------------------------
@@ -93,147 +107,117 @@ QUOTES = [
     ("Say hello to my little friend!", "Scarface"),
     ("You can't sit with us!", "Mean Girls"),
     ("Elementary, my dear Watson.", "Sherlock Holmes"),
+    ("You talking to me?", "Taxi Driver"),
+    ("Houston, we have a problem.", "Apollo 13"),
+    ("Frankly, my dear, I don't give a damn.", "Gone with the Wind"),
+    ("I see dead people.", "The Sixth Sense"),
+    ("There's no place like home.", "The Wizard of Oz"),
+    ("You shall not pass!", "The Lord of the Rings"),
+    ("I'm the king of the world!", "Titanic"),
+    ("Here's Johnny!", "The Shining"),
+    ("Hasta la vista, baby.", "Terminator 2"),
+    ("Nobody puts Baby in a corner.", "Dirty Dancing"),
+    ("My precious.", "The Lord of the Rings"),
+    ("I am your father.", "The Empire Strikes Back"),
+    ("Keep your friends close, but your enemies closer.", "The Godfather Part II"),
+    ("Wax on, wax off.", "The Karate Kid"),
+    ("They may take our lives, but they'll never take our freedom!", "Braveheart"),
+    ("You're gonna need a bigger boat.", "Jaws"),
+    ("I feel the need — the need for speed.", "Top Gun"),
+    ("Roads? Where we're going we don't need roads.", "Back to the Future"),
+    ("Life finds a way.", "Jurassic Park"),
+    ("This is Sparta!", "300"),
+    ("Yippee-ki-yay.", "Die Hard"),
+    ("I volunteer as tribute!", "The Hunger Games"),
+    ("Bond. James Bond.", "Dr. No"),
+    ("After all this time? Always.", "Harry Potter"),
+    ("Legen — wait for it — dary.", "How I Met Your Mother"),
+    ("Clear eyes, full hearts, can't lose.", "Friday Night Lights"),
+    ("Treat yo self.", "Parks and Recreation"),
+    ("The truth is out there.", "The X-Files"),
 ]
 
 
 def quotes_reply(text, session=None):
-    quote, source = random.choice(QUOTES)
+    if session is None:
+        quote, source = random.choice(QUOTES)
+    else:
+        i = _draw_from_deck(session, "quotes_deck", len(QUOTES))
+        quote, source = QUOTES[i]
     return f'"{quote}" — {source}'
 
 
 # ---------------------------------------------------------------------------
-# Mode — Minionese translator
+# Mode — Minionese (speaks in Minion-ese; does not echo your input)
 # ---------------------------------------------------------------------------
-MINION_VOCAB = {
-    "hello": "bello", "hi": "bello", "hey": "bello",
-    "goodbye": "poopaye", "bye": "poopaye",
-    "thanks": "tank yu", "thank": "tank yu",
-    "yes": "poka", "no": "noo",
-    "i": "me", "you": "tu", "your": "tu", "my": "mi",
-    "love": "tulaliloo", "friend": "bello", "friends": "bello",
-    "food": "gelato", "hungry": "gelato", "eat": "gelato",
-    "ice": "gelato", "cream": "gelato",
-    "one": "hana", "two": "dul", "three": "sae",
-    "apple": "apple", "toy": "bee do", "fire": "bee do bee do",
-    "please": "para tu", "sorry": "bapple",
-}
-MINION_EXCLAIM = ["Banana!", "Poopaye!", "Tulaliloo ti amo!", "Bee do bee do!",
-                  "Bello!", "Tank yu!", "Poka poka!"]
-
-
-def _minionify_word(w):
-    core = re.sub(r"[^a-z]", "", w.lower())
-    if core in MINION_VOCAB:
-        return MINION_VOCAB[core]
-    if len(core) > 3 and random.random() < 0.35:
-        return "banana"
-    return core.replace("th", "d").replace("v", "b") or w
+MINION_LINES = [
+    "Bello! Banana!",
+    "Poopaye! Tank yu for the banana!",
+    "Me want gelato! Tulaliloo ti amo!",
+    "Bee do bee do! Banana!",
+    "Poka poka, bello friend!",
+    "Tulaliloo! Para tu, banana!",
+    "Underwear! ...banana? Poopaye!",
+]
 
 
 def minionese_reply(text, session=None):
-    words = text.split()
-    if not words:
-        return "Bello! " + random.choice(MINION_EXCLAIM)
-    translated = " ".join(_minionify_word(w) for w in words)
-    return f"{translated.capitalize()}. {random.choice(MINION_EXCLAIM)}"
+    return random.choice(MINION_LINES)
 
 
 # ---------------------------------------------------------------------------
-# Mode — High Valyrian (Game of Thrones)
+# Mode — High Valyrian (speaks iconic phrases; does not echo your input)
 # ---------------------------------------------------------------------------
-VALYRIAN_VOCAB = {
-    "hello": "rytsas", "hi": "rytsas", "hey": "rytsas",
-    "goodbye": "geros ilas", "bye": "geros ilas",
-    "thanks": "kirimvose", "thank": "kirimvose",
-    "yes": "kessa", "no": "daor",
-    "i": "nyke", "you": "ao", "your": "aōha", "my": "ñuha", "me": "nyke",
-    "love": "jorrāelan", "friend": "raqiros", "friends": "raqirossa",
-    "fire": "perzys", "dragon": "zaldrīzes", "dragons": "zaldrīzesse",
-    "king": "dārys", "queen": "dāria", "man": "vala", "men": "valar",
-    "woman": "riña", "death": "morghon", "die": "morghūlis",
-    "serve": "dohaeras", "burn": "dracarys", "blood": "iksā", "is": "issa",
-    "good": "sȳz", "hello_world": "rytsas",
-}
-VALYRIAN_SIGNOFF = ["Valar morghulis.", "Valar dohaeris.", "Dracarys!",
-                    "Kirimvose.", "Ñuha raqiros.", "Perzys ānnkos jemās."]
-
-
-def _valyrianify_word(w):
-    core = re.sub(r"[^a-z]", "", w.lower())
-    if core in VALYRIAN_VOCAB:
-        return VALYRIAN_VOCAB[core]
-    # light phonetic flavor for unknown words
-    return core.replace("th", "z").replace("w", "v").replace("k", "kh") or w
+VALYRIAN_LINES = [
+    "Valar morghulis. (All men must die.)",
+    "Valar dohaeris. (All men must serve.)",
+    "Dracarys! (Dragonfire!)",
+    "Rytsas! (Hello!)",
+    "Kirimvose. (Thank you.)",
+    "Ñuha raqiros. (My friend.)",
+    "Perzys ānnkos jemās. (Fire and blood.)",
+    "Avy jorrāelan. (I love you.)",
+]
 
 
 def valyrian_reply(text, session=None):
-    words = text.split()
-    if not words:
-        return "Rytsas! " + random.choice(VALYRIAN_SIGNOFF)
-    translated = " ".join(_valyrianify_word(w) for w in words)
-    return f"{translated.capitalize()}. {random.choice(VALYRIAN_SIGNOFF)}"
+    return random.choice(VALYRIAN_LINES)
 
 
 # ---------------------------------------------------------------------------
-# Mode — Pirate speak
+# Mode — Pirate speak (talks like a pirate; does not echo your input)
 # ---------------------------------------------------------------------------
-PIRATE_VOCAB = {
-    "hello": "ahoy", "hi": "ahoy", "hey": "ahoy",
-    "my": "me", "friend": "matey", "friends": "hearties",
-    "you": "ye", "your": "yer", "you're": "ye be", "are": "be", "is": "be",
-    "yes": "aye", "no": "nay", "the": "th'", "for": "fer", "of": "o'",
-    "to": "t'", "and": "an'", "money": "doubloons", "treasure": "booty",
-    "food": "grub", "drink": "grog", "stop": "avast", "man": "scallywag",
-    "woman": "lass", "boy": "lad", "girl": "lass", "yeah": "aye",
-    "hello_there": "ahoy",
-}
-PIRATE_EXCLAIM = ["Arrr!", "Yo ho ho!", "Shiver me timbers!", "Avast ye!",
-                  "Yarrr, matey!", "Walk the plank!"]
-
-
-def _piratify_word(w):
-    m = re.match(r"([a-zA-Z']+)(\W*)$", w)
-    if not m:
-        return w
-    core, tail = m.group(1), m.group(2)
-    low = core.lower()
-    if low in PIRATE_VOCAB:
-        repl = PIRATE_VOCAB[low]
-        if core[0].isupper():
-            repl = repl.capitalize()
-        return repl + tail
-    core = re.sub(r"ing\b", "in'", core)  # runnin', sailin'
-    return core + tail
+PIRATE_LINES = [
+    "Arrr, welcome aboard, matey!",
+    "Yo ho ho! Where be the grog?",
+    "Shiver me timbers, ye scallywag!",
+    "Avast! Hand over the booty, ye landlubber!",
+    "Aye, we set sail at dawn, hearties!",
+    "Yarrr! Dead men tell no tales.",
+    "Batten down the hatches, a storm be a-comin'!",
+]
 
 
 def pirate_reply(text, session=None):
-    if not text.strip():
-        return "Ahoy! " + random.choice(PIRATE_EXCLAIM)
-    translated = " ".join(_piratify_word(w) for w in text.split())
-    return f"{translated} {random.choice(PIRATE_EXCLAIM)}"
+    return random.choice(PIRATE_LINES)
 
 
 # ---------------------------------------------------------------------------
-# Mode — Yoda-speak
+# Mode — Yoda-speak (speaks like Yoda; does not echo your input)
 # ---------------------------------------------------------------------------
-YODA_TAILS = ["Hmmm.", "Yes.", "Mmm, yes.", "Do or do not — there is no try.",
-              "Strong with the Force, you are.", "Patience you must have."]
+YODA_LINES = [
+    "Much to learn, you still have. Hmmm.",
+    "Do or do not. There is no try.",
+    "Patience you must have, young Padawan.",
+    "Strong with the Force, this one is. Yes.",
+    "Fear leads to anger. Anger leads to hate. Hate leads to suffering.",
+    "Named must your fear be, before banish it you can.",
+    "Size matters not. Judge me by my size, do you?",
+]
 
 
 def yoda_reply(text, session=None):
-    clean = text.strip().rstrip(".!?")
-    if not clean:
-        return "Speak, you must. Hmmm."
-    words = clean.split()
-    if len(words) < 3:
-        return f"{clean.capitalize()}, yes. Hmmm."
-    # Move the back half of the sentence to the front (object-first, Yoda style).
-    split = max(1, len(words) * 2 // 3)
-    front = " ".join(words[split:])
-    back = " ".join(words[:split])
-    sentence = f"{front}, {back}".strip()
-    sentence = sentence[0].upper() + sentence[1:]
-    return f"{sentence}. {random.choice(YODA_TAILS)}"
+    return random.choice(YODA_LINES)
 
 
 # ---------------------------------------------------------------------------
@@ -282,17 +266,41 @@ TRIVIA = [
     ("What year did the first human land on the Moon?", ["1969"]),
     ("What is the smallest prime number?", ["2", "two"]),
     ("Which ocean is the largest?", ["pacific"]),
+    ("What is the capital of Japan?", ["tokyo"]),
+    ("How many strings does a standard guitar have?", ["6", "six"]),
+    ("What is the powerhouse of the cell?", ["mitochondria", "mitochondrion"]),
+    ("What planet is closest to the Sun?", ["mercury"]),
+    ("In which country would you find the Eiffel Tower?", ["france"]),
+    ("What is H2O more commonly known as?", ["water"]),
 ]
 
 
-def start_trivia(session):
-    """Reset score and return the intro + first question. Called on entering the mode."""
-    session["trivia_score"] = 0
-    session["trivia_total"] = 0
-    q, answers = random.choice(TRIVIA)
+def _new_deck():
+    deck = list(range(len(TRIVIA)))
+    random.shuffle(deck)
+    return deck
+
+
+def _draw_question(session):
+    """Pop the next question from a shuffled deck so none repeats until all are used."""
+    deck = session.get("trivia_deck") or []
+    if not deck:
+        deck = _new_deck()
+    i = deck.pop()
+    session["trivia_deck"] = deck
+    q, answers = TRIVIA[i]
     session["trivia_answer"] = answers
     session["trivia_q"] = q
     session.modified = True
+    return q
+
+
+def start_trivia(session):
+    """Reset score/deck and return the intro + first question. Called on entering the mode."""
+    session["trivia_score"] = 0
+    session["trivia_total"] = 0
+    session["trivia_deck"] = _new_deck()
+    q = _draw_question(session)
     return f"🎯 Trivia time! I'll ask, you answer. Question 1: {q}"
 
 
@@ -314,11 +322,7 @@ def trivia_reply(text, session):
     else:
         verdict = f"❌ Not quite — the answer was '{answers[0]}'."
 
-    q, next_answers = random.choice(TRIVIA)
-    session["trivia_answer"] = next_answers
-    session["trivia_q"] = q
-    session.modified = True
-
+    q = _draw_question(session)
     score = session["trivia_score"]
     total = session["trivia_total"]
     return f"{verdict}  (Score: {score}/{total})\n\nNext question: {q}"
@@ -330,7 +334,7 @@ def trivia_reply(text, session):
 MODES = {
     "quotes": {"label": "🎬 Movie & TV Quotes", "func": quotes_reply},
     "facts": {"label": "🧠 Random Facts", "func": facts_reply},
-    "minionese": {"label": "🍌 Minionese Translator", "func": minionese_reply},
+    "minionese": {"label": "🍌 Minionese", "func": minionese_reply},
     "valyrian": {"label": "🐉 High Valyrian", "func": valyrian_reply},
     "pirate": {"label": "🏴‍☠️ Pirate Speak", "func": pirate_reply},
     "yoda": {"label": "🟢 Yoda-Speak", "func": yoda_reply},
