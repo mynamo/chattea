@@ -17,11 +17,17 @@ def index(request):
     requested = request.GET.get("mode")
     if requested in bot.MODES:
         request.session["mode"] = requested
+        # Stateful modes (e.g. Trivia) greet you with an opening bot message.
+        if requested in bot.STATEFUL_MODES:
+            opener = bot.start_trivia(request.session)
+            Chats.objects.create(messages=opener, sender="bot", mode=requested)
         return redirect("index")
 
-    # Clear the conversation.
+    # Clear the conversation (and any trivia progress).
     if request.GET.get("clear") == "1":
         Chats.objects.all().delete()
+        for k in ("trivia_score", "trivia_total", "trivia_answer", "trivia_q"):
+            request.session.pop(k, None)
         return redirect("index")
 
     if request.method == "POST":
@@ -29,7 +35,7 @@ def index(request):
         if form.is_valid():
             text = form.cleaned_data["message"]
             Chats.objects.create(messages=text, sender="user", mode=mode)
-            reply = bot.generate_reply(mode, text)
+            reply = bot.generate_reply(mode, text, request.session)
             Chats.objects.create(messages=reply, sender="bot", mode=mode)
         return redirect("index")
 

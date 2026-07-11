@@ -1,16 +1,17 @@
 """
-chattea bot — multi-mode responders.
+Chatterbox bot — multi-mode responders.
 
-Each mode is just a function `f(text) -> str`. To add a new personality, write a
-function and add one entry to MODES. Everything here is self-contained (no
-external APIs or downloads) so it deploys cleanly on Render's free tier.
+Each mode is a function `f(text, session) -> str`. Most modes ignore `session`;
+stateful ones (like Trivia) use it to remember score across turns. To add a new
+personality, write a function and add one entry to MODES. Everything here is
+self-contained (no external APIs or downloads) so it deploys cleanly on Render.
 """
 
 import random
 import re
 
 # ---------------------------------------------------------------------------
-# Mode 1 — Random facts about a topic
+# Mode — Random facts about a topic
 # ---------------------------------------------------------------------------
 FACTS = {
     "space": [
@@ -60,7 +61,7 @@ _FACT_INTRO = ["Here's a {topic} fact:", "Did you know? ({topic})", "Fun {topic}
                "🧠 {topic} corner:"]
 
 
-def facts_reply(text):
+def facts_reply(text, session=None):
     low = text.lower()
     topic = next((t for t in FACTS if t in low or t[:-1] in low), None)
     if topic is None:
@@ -73,7 +74,7 @@ def facts_reply(text):
 
 
 # ---------------------------------------------------------------------------
-# Mode 2 — Famous movie & TV quotes
+# Mode — Famous movie & TV quotes
 # ---------------------------------------------------------------------------
 QUOTES = [
     ("May the Force be with you.", "Star Wars"),
@@ -95,13 +96,13 @@ QUOTES = [
 ]
 
 
-def quotes_reply(text):
+def quotes_reply(text, session=None):
     quote, source = random.choice(QUOTES)
     return f'"{quote}" — {source}'
 
 
 # ---------------------------------------------------------------------------
-# Mode 3 — Minionese translator
+# Mode — Minionese translator
 # ---------------------------------------------------------------------------
 MINION_VOCAB = {
     "hello": "bello", "hi": "bello", "hey": "bello",
@@ -126,11 +127,10 @@ def _minionify_word(w):
         return MINION_VOCAB[core]
     if len(core) > 3 and random.random() < 0.35:
         return "banana"
-    # light phonetic minion-ification
     return core.replace("th", "d").replace("v", "b") or w
 
 
-def minionese_reply(text):
+def minionese_reply(text, session=None):
     words = text.split()
     if not words:
         return "Bello! " + random.choice(MINION_EXCLAIM)
@@ -139,7 +139,105 @@ def minionese_reply(text):
 
 
 # ---------------------------------------------------------------------------
-# Mode 4 — Sentiment mirror (lightweight lexicon-based NLP)
+# Mode — High Valyrian (Game of Thrones)
+# ---------------------------------------------------------------------------
+VALYRIAN_VOCAB = {
+    "hello": "rytsas", "hi": "rytsas", "hey": "rytsas",
+    "goodbye": "geros ilas", "bye": "geros ilas",
+    "thanks": "kirimvose", "thank": "kirimvose",
+    "yes": "kessa", "no": "daor",
+    "i": "nyke", "you": "ao", "your": "aōha", "my": "ñuha", "me": "nyke",
+    "love": "jorrāelan", "friend": "raqiros", "friends": "raqirossa",
+    "fire": "perzys", "dragon": "zaldrīzes", "dragons": "zaldrīzesse",
+    "king": "dārys", "queen": "dāria", "man": "vala", "men": "valar",
+    "woman": "riña", "death": "morghon", "die": "morghūlis",
+    "serve": "dohaeras", "burn": "dracarys", "blood": "iksā", "is": "issa",
+    "good": "sȳz", "hello_world": "rytsas",
+}
+VALYRIAN_SIGNOFF = ["Valar morghulis.", "Valar dohaeris.", "Dracarys!",
+                    "Kirimvose.", "Ñuha raqiros.", "Perzys ānnkos jemās."]
+
+
+def _valyrianify_word(w):
+    core = re.sub(r"[^a-z]", "", w.lower())
+    if core in VALYRIAN_VOCAB:
+        return VALYRIAN_VOCAB[core]
+    # light phonetic flavor for unknown words
+    return core.replace("th", "z").replace("w", "v").replace("k", "kh") or w
+
+
+def valyrian_reply(text, session=None):
+    words = text.split()
+    if not words:
+        return "Rytsas! " + random.choice(VALYRIAN_SIGNOFF)
+    translated = " ".join(_valyrianify_word(w) for w in words)
+    return f"{translated.capitalize()}. {random.choice(VALYRIAN_SIGNOFF)}"
+
+
+# ---------------------------------------------------------------------------
+# Mode — Pirate speak
+# ---------------------------------------------------------------------------
+PIRATE_VOCAB = {
+    "hello": "ahoy", "hi": "ahoy", "hey": "ahoy",
+    "my": "me", "friend": "matey", "friends": "hearties",
+    "you": "ye", "your": "yer", "you're": "ye be", "are": "be", "is": "be",
+    "yes": "aye", "no": "nay", "the": "th'", "for": "fer", "of": "o'",
+    "to": "t'", "and": "an'", "money": "doubloons", "treasure": "booty",
+    "food": "grub", "drink": "grog", "stop": "avast", "man": "scallywag",
+    "woman": "lass", "boy": "lad", "girl": "lass", "yeah": "aye",
+    "hello_there": "ahoy",
+}
+PIRATE_EXCLAIM = ["Arrr!", "Yo ho ho!", "Shiver me timbers!", "Avast ye!",
+                  "Yarrr, matey!", "Walk the plank!"]
+
+
+def _piratify_word(w):
+    m = re.match(r"([a-zA-Z']+)(\W*)$", w)
+    if not m:
+        return w
+    core, tail = m.group(1), m.group(2)
+    low = core.lower()
+    if low in PIRATE_VOCAB:
+        repl = PIRATE_VOCAB[low]
+        if core[0].isupper():
+            repl = repl.capitalize()
+        return repl + tail
+    core = re.sub(r"ing\b", "in'", core)  # runnin', sailin'
+    return core + tail
+
+
+def pirate_reply(text, session=None):
+    if not text.strip():
+        return "Ahoy! " + random.choice(PIRATE_EXCLAIM)
+    translated = " ".join(_piratify_word(w) for w in text.split())
+    return f"{translated} {random.choice(PIRATE_EXCLAIM)}"
+
+
+# ---------------------------------------------------------------------------
+# Mode — Yoda-speak
+# ---------------------------------------------------------------------------
+YODA_TAILS = ["Hmmm.", "Yes.", "Mmm, yes.", "Do or do not — there is no try.",
+              "Strong with the Force, you are.", "Patience you must have."]
+
+
+def yoda_reply(text, session=None):
+    clean = text.strip().rstrip(".!?")
+    if not clean:
+        return "Speak, you must. Hmmm."
+    words = clean.split()
+    if len(words) < 3:
+        return f"{clean.capitalize()}, yes. Hmmm."
+    # Move the back half of the sentence to the front (object-first, Yoda style).
+    split = max(1, len(words) * 2 // 3)
+    front = " ".join(words[split:])
+    back = " ".join(words[:split])
+    sentence = f"{front}, {back}".strip()
+    sentence = sentence[0].upper() + sentence[1:]
+    return f"{sentence}. {random.choice(YODA_TAILS)}"
+
+
+# ---------------------------------------------------------------------------
+# Mode — Sentiment mirror (lightweight lexicon-based NLP)
 # ---------------------------------------------------------------------------
 POS_WORDS = {
     "good", "great", "awesome", "amazing", "love", "loved", "happy", "excited",
@@ -153,24 +251,77 @@ NEG_WORDS = {
 }
 
 
-def sentiment_reply(text):
+def sentiment_reply(text, session=None):
     tokens = re.findall(r"[a-z']+", text.lower())
     pos = sum(t in POS_WORDS for t in tokens)
     neg = sum(t in NEG_WORDS for t in tokens)
     score = pos - neg
-
     if score > 0:
-        mood, emoji = "positive", "😄"
-        line = "You sound upbeat — love that energy! Keep it going."
+        mood, emoji, line = "positive", "😄", "You sound upbeat — love that energy! Keep it going."
     elif score < 0:
-        mood, emoji = "negative", "🫂"
-        line = "I'm sensing some heaviness. That's okay — want to talk it out?"
+        mood, emoji, line = "negative", "🫂", "I'm sensing some heaviness. That's okay — want to talk it out?"
     else:
-        mood, emoji = "neutral", "🙂"
-        line = "Feeling pretty even-keeled from what I can tell."
-
+        mood, emoji, line = "neutral", "🙂", "Feeling pretty even-keeled from what I can tell."
     detail = f"(read: {pos} positive / {neg} negative cue{'s' if (pos + neg) != 1 else ''})"
     return f"{emoji} I'm reading that as **{mood}**. {line} {detail}"
+
+
+# ---------------------------------------------------------------------------
+# Mode — Trivia game (stateful: score kept in the session)
+# ---------------------------------------------------------------------------
+TRIVIA = [
+    ("What planet is known as the Red Planet?", ["mars"]),
+    ("How many continents are there on Earth?", ["7", "seven"]),
+    ("What is the largest mammal in the world?", ["blue whale", "whale"]),
+    ("In what language is this app's bot written? (the programming one)", ["python"]),
+    ("What gas do plants primarily absorb from the air?", ["carbon dioxide", "co2"]),
+    ("Who wrote the play 'Romeo and Juliet'?", ["shakespeare"]),
+    ("What is the chemical symbol for gold?", ["au"]),
+    ("How many sides does a hexagon have?", ["6", "six"]),
+    ("What is the tallest mountain above sea level?", ["everest", "mount everest"]),
+    ("What year did the first human land on the Moon?", ["1969"]),
+    ("What is the smallest prime number?", ["2", "two"]),
+    ("Which ocean is the largest?", ["pacific"]),
+]
+
+
+def start_trivia(session):
+    """Reset score and return the intro + first question. Called on entering the mode."""
+    session["trivia_score"] = 0
+    session["trivia_total"] = 0
+    q, answers = random.choice(TRIVIA)
+    session["trivia_answer"] = answers
+    session["trivia_q"] = q
+    session.modified = True
+    return f"🎯 Trivia time! I'll ask, you answer. Question 1: {q}"
+
+
+def trivia_reply(text, session):
+    answers = session.get("trivia_answer")
+    if not answers:  # safety — no active question
+        return start_trivia(session)
+
+    guess = text.strip().lower()
+    if guess in ("score", "stop", "quit"):
+        return (f"📊 Your score so far: {session.get('trivia_score', 0)} / "
+                f"{session.get('trivia_total', 0)}. Keep going or switch modes anytime!")
+
+    correct = any(a in guess for a in answers)
+    session["trivia_total"] = session.get("trivia_total", 0) + 1
+    if correct:
+        session["trivia_score"] = session.get("trivia_score", 0) + 1
+        verdict = "✅ Correct!"
+    else:
+        verdict = f"❌ Not quite — the answer was '{answers[0]}'."
+
+    q, next_answers = random.choice(TRIVIA)
+    session["trivia_answer"] = next_answers
+    session["trivia_q"] = q
+    session.modified = True
+
+    score = session["trivia_score"]
+    total = session["trivia_total"]
+    return f"{verdict}  (Score: {score}/{total})\n\nNext question: {q}"
 
 
 # ---------------------------------------------------------------------------
@@ -180,9 +331,14 @@ MODES = {
     "quotes": {"label": "🎬 Movie & TV Quotes", "func": quotes_reply},
     "facts": {"label": "🧠 Random Facts", "func": facts_reply},
     "minionese": {"label": "🍌 Minionese Translator", "func": minionese_reply},
+    "valyrian": {"label": "🐉 High Valyrian", "func": valyrian_reply},
+    "pirate": {"label": "🏴‍☠️ Pirate Speak", "func": pirate_reply},
+    "yoda": {"label": "🟢 Yoda-Speak", "func": yoda_reply},
     "sentiment": {"label": "💭 Sentiment Mirror", "func": sentiment_reply},
+    "trivia": {"label": "❓ Trivia Game", "func": trivia_reply},
 }
 DEFAULT_MODE = "quotes"
+STATEFUL_MODES = {"trivia"}  # modes that seed a bot message when you switch into them
 
 
 def mode_choices():
@@ -190,9 +346,9 @@ def mode_choices():
     return [(k, v["label"]) for k, v in MODES.items()]
 
 
-def generate_reply(mode, text):
+def generate_reply(mode, text, session=None):
     mode = mode if mode in MODES else DEFAULT_MODE
     try:
-        return MODES[mode]["func"](text)
+        return MODES[mode]["func"](text, session)
     except Exception:
         return "Oops — my circuits hiccuped. Try again?"
