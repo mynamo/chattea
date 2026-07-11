@@ -216,7 +216,8 @@ def _words(text):
     return re.findall(r"[A-Za-z']+", text)
 
 
-# --- Minionese: real translation where known, minion filler otherwise ---
+# --- Minionese: known words translate; unknown words get a consistent
+#     minion-ified spelling (deterministic — the same word always maps the same). ---
 MINION_VOCAB = {
     "hello": "bello", "hi": "bello", "hey": "bello", "goodbye": "poopaye", "bye": "poopaye",
     "thanks": "tank yu", "thank": "tank yu", "yes": "poka", "no": "noo",
@@ -225,19 +226,27 @@ MINION_VOCAB = {
     "hungry": "gelato", "eat": "gelato", "please": "para tu", "sorry": "bapple",
     "one": "hana", "two": "dul", "three": "sae",
 }
-MINION_FILLER = ["banana", "poopaye", "bello", "tulaliloo", "gelato", "poka", "bee do", "bapple"]
-MINION_EXCLAIM = ["Banana!", "Poopaye!", "Tulaliloo ti amo!", "Bee do bee do!", "Poka poka!"]
+
+
+def _minion_translit(w):
+    s = re.sub(r"[^a-z]", "", w.lower())
+    s = (s.replace("th", "d").replace("v", "b").replace("c", "k")
+          .replace("x", "ka").replace("i", "ee"))
+    if s and s[-1] not in "aeiou":
+        s += "a"
+    return s or "banana"
 
 
 def minionese_reply(text, session=None):
     words = _words(text)
     if not words:
-        return "Bello! " + random.choice(MINION_EXCLAIM)
-    out = [MINION_VOCAB.get(w.lower(), random.choice(MINION_FILLER)) for w in words]
-    return " ".join(out).capitalize() + "! " + random.choice(MINION_EXCLAIM)
+        return "Bello!"
+    out = [MINION_VOCAB.get(w.lower(), _minion_translit(w)) for w in words]
+    return " ".join(out).capitalize() + "!"
 
 
-# --- High Valyrian: real words where known, Valyrian filler otherwise ---
+# --- High Valyrian: known words translate; unknown words get a consistent
+#     Valyrian-ified spelling (deterministic). ---
 VALYRIAN_VOCAB = {
     "hello": "rytsas", "hi": "rytsas", "hey": "rytsas", "goodbye": "geros ilas",
     "thanks": "kirimvose", "thank": "kirimvose", "yes": "kessa", "no": "daor",
@@ -245,17 +254,22 @@ VALYRIAN_VOCAB = {
     "love": "jorrāelan", "friend": "raqiros", "fire": "perzys", "dragon": "zaldrīzes",
     "king": "dārys", "queen": "dāria", "death": "morghon", "blood": "iksā", "is": "issa",
 }
-VALYRIAN_FILLER = ["valar", "morghulis", "dohaeris", "zaldrīzes", "perzys", "kirimvose",
-                   "rytsas", "dārys", "iksā", "ñuha"]
-VALYRIAN_SIGNOFF = ["Valar morghulis.", "Valar dohaeris.", "Dracarys!", "Kirimvose."]
+
+
+def _valyrian_translit(w):
+    s = re.sub(r"[^a-z]", "", w.lower())
+    s = s.replace("th", "z").replace("sh", "s").replace("w", "v").replace("k", "kh")
+    if s and s[-1] not in "aeiou":
+        s += "ys"
+    return s or "valar"
 
 
 def valyrian_reply(text, session=None):
     words = _words(text)
     if not words:
-        return "Rytsas! " + random.choice(VALYRIAN_SIGNOFF)
-    out = [VALYRIAN_VOCAB.get(w.lower(), random.choice(VALYRIAN_FILLER)) for w in words]
-    return " ".join(out).capitalize() + ". " + random.choice(VALYRIAN_SIGNOFF)
+        return "Rytsas!"
+    out = [VALYRIAN_VOCAB.get(w.lower(), _valyrian_translit(w)) for w in words]
+    return " ".join(out).capitalize() + "."
 
 
 # --- Pirate: an English dialect, so it reshapes your words (ye/be/arr, -in') ---
@@ -270,12 +284,11 @@ PIRATE_VOCAB = {
     "ship": "vessel", "man": "scallywag", "woman": "lass", "boy": "lad", "girl": "lass",
     "yeah": "aye", "hello_there": "ahoy",
 }
-PIRATE_EXCLAIM = ["Arrr!", "Yo ho ho!", "Shiver me timbers!", "Avast ye!", "Yarrr, matey!"]
 
 
 def pirate_reply(text, session=None):
     if not text.strip():
-        return "Ahoy! " + random.choice(PIRATE_EXCLAIM)
+        return "Ahoy, matey! Arrr!"
     out = []
     for w in text.split():
         m = re.match(r"([A-Za-z']+)(\W*)$", w)
@@ -289,14 +302,10 @@ def pirate_reply(text, session=None):
             out.append((rep.capitalize() if core[0].isupper() else rep) + tail)
         else:
             out.append(re.sub(r"ing\b", "in'", core) + tail)
-    return " ".join(out) + " " + random.choice(PIRATE_EXCLAIM)
+    return " ".join(out) + " Arrr!"
 
 
-# --- Yoda: reorders your words (object-first) and adds a Yoda-ism ---
-YODA_TAILS = ["Hmmm.", "Yes.", "Mmm, yes.", "Patience you must have.",
-              "Strong with the Force, you are."]
-
-
+# --- Yoda: reorders your words (object-first) and adds a fixed Yoda-ism ---
 def yoda_reply(text, session=None):
     clean = text.strip().rstrip(".!?")
     words = clean.split()
@@ -305,28 +314,61 @@ def yoda_reply(text, session=None):
     split = max(1, len(words) * 2 // 3)
     sentence = " ".join(words[split:]) + ", " + " ".join(words[:split])
     sentence = sentence[0].upper() + sentence[1:]
-    return sentence + ". " + random.choice(YODA_TAILS)
+    return sentence + ". Hmmm."
 
 
 # ---------------------------------------------------------------------------
 # Mode — Sentiment mirror (lightweight lexicon-based NLP)
 # ---------------------------------------------------------------------------
 POS_WORDS = {
-    "good", "great", "awesome", "amazing", "love", "loved", "happy", "excited",
-    "wonderful", "fantastic", "beautiful", "best", "joy", "glad", "yay", "nice",
-    "cool", "fun", "win", "won", "hope", "grateful", "thrilled", "delighted",
+    "good", "great", "awesome", "amazing", "love", "loved", "loving", "like", "liked",
+    "happy", "excited", "exciting", "wonderful", "fantastic", "beautiful", "best",
+    "better", "joy", "joyful", "glad", "yay", "yayy", "nice", "cool", "fun", "funny",
+    "win", "won", "winning", "hope", "hopeful", "grateful", "thankful", "thrilled",
+    "delighted", "excellent", "brilliant", "perfect", "enjoy", "enjoyed", "enjoying",
+    "smile", "smiling", "proud", "relieved", "calm", "peaceful", "content", "pleased",
+    "cheerful", "optimistic", "confident", "blessed", "lucky", "success", "successful",
+    "celebrate", "incredible", "adorable", "sweet", "kind", "comfortable", "relaxed",
+    "stoked", "pumped", "ecstatic", "overjoyed", "laugh", "laughing", "wow", "awesome",
+    "fabulous", "lovely", "gorgeous", "yes", "woohoo", "grinning",
 }
 NEG_WORDS = {
-    "bad", "terrible", "awful", "sad", "hate", "hated", "angry", "upset", "tired",
-    "worst", "cry", "crying", "hurt", "pain", "lonely", "anxious", "stressed",
-    "annoyed", "frustrated", "sick", "fail", "failed", "lost", "worried", "ugh",
+    "bad", "terrible", "awful", "sad", "hate", "hated", "hating", "dislike", "angry",
+    "upset", "tired", "worst", "worse", "cry", "cried", "crying", "hurt", "hurts",
+    "hurting", "pain", "painful", "lonely", "alone", "anxious", "anxiety", "stressed",
+    "stress", "annoyed", "annoying", "frustrated", "frustrating", "sick", "ill", "fail",
+    "failed", "failing", "lost", "losing", "worried", "worry", "ugh", "sucks", "suck",
+    "down", "depressed", "depressing", "rough", "tough", "hard", "struggle", "struggling",
+    "exhausted", "drained", "overwhelmed", "miserable", "hopeless", "heartbroken",
+    "broken", "scared", "afraid", "fear", "nervous", "panic", "dread", "grief", "grieving",
+    "disappointed", "disappointing", "regret", "guilty", "ashamed", "embarrassed", "sore",
+    "unwell", "dying", "tears", "sobbing", "rejected", "betrayed", "bored", "boring",
+    "dull", "meh", "gross", "disgusting", "horrible", "nasty", "ruined", "stuck",
+    "furious", "rage", "mad", "cranky", "grumpy", "worthless", "useless", "pathetic",
+    "numb", "hurtful", "unhappy", "cranky", "crappy", "damn", "no",
 }
+NEGATORS = {"not", "no", "never", "dont", "cant", "isnt", "aint", "wasnt", "hardly",
+            "barely", "without", "cannot", "wont", "nothing", "neither"}
 
 
 def sentiment_reply(text, session=None):
     tokens = re.findall(r"[a-z']+", text.lower())
-    pos = sum(t in POS_WORDS for t in tokens)
-    neg = sum(t in NEG_WORDS for t in tokens)
+    tokens = [t.replace("'", "") for t in tokens]
+    pos = neg = 0
+    neg_window = 0  # a negator flips the next sentiment word within a short window
+    for t in tokens:
+        if t in NEGATORS:
+            neg_window = 3
+            continue
+        is_pos, is_neg = t in POS_WORDS, t in NEG_WORDS
+        if is_pos or is_neg:
+            polarity_pos = is_pos
+            if neg_window > 0:
+                polarity_pos = not polarity_pos
+            pos, neg = (pos + 1, neg) if polarity_pos else (pos, neg + 1)
+            neg_window = 0
+        elif neg_window > 0:
+            neg_window -= 1
     score = pos - neg
     if score > 0:
         mood, emoji, line = "positive", "😄", "You sound upbeat — love that energy! Keep it going."
