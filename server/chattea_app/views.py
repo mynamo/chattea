@@ -27,9 +27,9 @@ def index(request):
     requested = request.GET.get("mode")
     if requested in bot.MODES:
         request.session["mode"] = requested
-        # Stateful modes (e.g. Trivia) greet you with an opening bot message.
-        if requested in bot.STATEFUL_MODES:
-            opener = bot.start_trivia(request.session)
+        # Some modes (Trivia, Facts) greet you with an opening bot message.
+        opener = bot.opener_for(requested, request.session)
+        if opener:
             Chats.objects.create(messages=opener, sender="bot", mode=requested)
         request.session["keep_chat"] = True
         return redirect("index")
